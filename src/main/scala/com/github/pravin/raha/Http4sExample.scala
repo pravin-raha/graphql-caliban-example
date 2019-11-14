@@ -2,15 +2,15 @@ package com.github.pravin.raha
 
 import caliban.GraphQL.graphQL
 import caliban.schema.GenericSchema
-import caliban.{GraphQL, Http4sAdapter, RootResolver}
+import caliban.{ GraphQL, Http4sAdapter, RootResolver }
 import org.http4s.implicits._
 import org.http4s.server.Router
 import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.server.middleware.CORS
+import zio._
 import zio.clock.Clock
-import zio.console.{Console, putStrLn}
+import zio.console.{ putStrLn, Console }
 import zio.interop.catz._
-import zio.{RIO, ZIO}
 
 object Http4sExample extends CatsApp with GenericSchema[Console with Clock] {
 
@@ -29,26 +29,24 @@ object Http4sExample extends CatsApp with GenericSchema[Console with Clock] {
   // schema
   case class CharacterName(name: String)
 
-  case class Queries(characters: List[Character],
-                     character: CharacterName => Option[Character])
+  case class Queries(characters: List[Character], character: CharacterName => Option[Character])
 
   // resolver
   val queries = Queries(getCharacters, args => getCharacter(args.name))
 
   val interpreter: GraphQL[Console with Clock, Queries, Unit, Unit] = graphQL(RootResolver(queries))
 
-
-  override def run(args: List[String]): ZIO[Environment, Nothing, Int] =
+  override def run(args: List[String]): ZIO[ZEnv, Nothing, Int] =
     (for {
       _ <- BlazeServerBuilder[ExampleTask]
-        .bindHttp(8088, "localhost")
-        .withHttpApp(
-          Router(
-            "/api/graphql" -> CORS(Http4sAdapter.makeRestService(interpreter)),
-          ).orNotFound
-        )
-        .resource
-        .toManaged
-        .useForever
+            .bindHttp(8088, "localhost")
+            .withHttpApp(
+              Router(
+                "/api/graphql" -> CORS(Http4sAdapter.makeRestService(interpreter))
+              ).orNotFound
+            )
+            .resource
+            .toManaged
+            .useForever
     } yield 0).catchAll(err => putStrLn(err.toString).as(1))
 }
